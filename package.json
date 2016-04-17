@@ -6,7 +6,7 @@
     "Contents",
     "web"
   ],
-  "homepage": "http://www.kmrweb.net/server/knuty.html",
+  "homepage": "http://www.kmrweb.net/server/cms.html",
   "license": "MIT",
   "version": "0.1.0",
   "author": {
@@ -18,7 +18,8 @@
     "url": "git://github.org/m0kimura/kncms.git"
   },
   "dependencies": {
-    "cheerio": "~0.20.0"
+    "cheerio": "~0.20.0",
+    "knuty": "~0.1.0"
   },
   "engines": {
     "node": ">=0.5.2"
