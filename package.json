@@ -8,7 +8,7 @@
   ],
   "homepage": "http://www.kmrweb.net/server/cms.html",
   "license": "MIT",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "michihiro kimura",
     "email": "kimura@kmrweb.net"
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "cheerio": "~0.20.0",
-    "knuty": "~0.1.0"
+    "knuty": "~0.1.1"
   },
   "engines": {
     "node": ">=0.5.2"
