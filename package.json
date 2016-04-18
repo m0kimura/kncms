@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "cheerio": "~0.20.0",
-    "knuty": "~0.1.1"
+    "knuty": "latest"
   },
   "engines": {
     "node": ">=0.5.2"
