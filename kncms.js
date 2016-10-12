@@ -707,8 +707,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       if(f){folders=d[j].folders;}
     }
     if(!folders){
-      me.sevierLog('ページデータがありません。', "folders is null");
-      return;
+      folders=[];
     }else{
       folders.unshift("");    // トップを加える
     }
