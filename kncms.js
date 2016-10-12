@@ -1,10 +1,11 @@
 var Kc=require('knuty');
-var CLR=require('./kncolor.js');
-var Cheerio=require('cheerio');
+var CLR=require('./kncolor');
+var Cookie=require('cookie');
 var Fs=require('fs');
 var Http=require('http');
 var Url=require('url');
-Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
+var Cheerio=require('cheerio');
+Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 //
   server: function(proc, op){
     var me=this;
@@ -36,7 +37,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
         Kc.analyzeRequest(req, res);
         switch(me.SS.PATH[1]){
          case 'rest':
-          var error=proc(me.SS);
+          error=proc(me.SS);
           if(!error){Kc.sessionOut(req, res);}
           break;
          case 'image': error=Kc.putFile(res, op.base+'/image/'); break;
@@ -51,11 +52,12 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
          case 'source': error=Kc.putEscape(res, op.base+'/source/'); break;
          case 'favicon.ico': error=Kc.putFile(res, op.base+'/image/'); break;
          case 'sitemap.xml': error=Kc.sitemap(res); break;
-         case 'reload': me.menuBuild(op); error=false; 
+         case 'reload': me.menuBuild(op, true); error=false; 
           res.writeHead(200, {"Content-Type": "text/plane", "charset": "utf-8"}); res.end("OK");
           break;
          case 'setdate': me.debugSetdate(res, op); break;
          default:
+          error=proc(me.SS);
           me.putHtml(req.url, op.base, res); me.SS.INFOJ=me.INFOJ;
           try{
             Fs.writeFileSync(op.data+'/ss_'+me.SS.cid+'.json', JSON.stringify(me.SS), 'utf8');
@@ -252,7 +254,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
       }else{
         if(!me.isExist(base+url)){
           a[a.length-1]="page"; var i, c=""; u=""; for(i in a){u=u+c+a[i]; c=".";}
-          dt=me.pageinfo(base+u);
+          dt=me.pageinfo(base+u, base);
           b=dt["PARM"].split("\n");
           var v;
           for(i in b){v=me.unstring(b[i]); me.INFOJ[v[0]]=v[1];}
@@ -261,9 +263,11 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
 
           me.INFOJ['url']=url;
           me.INFOJ['short']=me.INFOJ['short']||me.INFOJ['title'];
+          me.CSS=dt['CSS']||'';
           me.toolbox();
 
           txt=Fs.readFileSync(base+"/template/"+me.INFOJ["template"]+".htm", {encoding: 'utf8'});
+          txt=me.expand(txt, base, dt);
         }else{
           txt=Fs.readFileSync(base+url, {encoding: 'utf-8'});
         }
@@ -271,7 +275,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
       res.writeHead(200, {
         "Content-Type": "text/html", "charset": "utf8", "Set-Cookie": me.putCookies()
       });
-      res.end(me.expand(txt, base, dt), "utf8");
+      res.end(txt, "utf8");
     }catch(e){
       me.sevierLog("putHtml", e);
       res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});
@@ -307,10 +311,12 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
 //
 // pageinfo ページインフォ
 //
-  pageinfo: function(fname){
+  pageinfo: function(fname, base){
     var me=this;
-    var d=me.getText(fname, true);
-    var f={}; var k='BODY'; var out=''; f['PARM']=""; f['BODY']="";
+
+    if(!me.isExist(fname)){fname=base+'/error404.page';} var d=me.getText(fname, true);
+
+    var f={}; var k='BODY'; var out=''; f['PARM']=""; f['BODY']=""; f['HISTORY']=''; f['CSS']='';
  
     if(d){
       if(d[0]){if(d[0].charCodeAt(0)==65279){d[0]=d[0].substr(1);}} // bom除去feff
@@ -455,6 +461,19 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
     return $;
   },
 //
+// devCss Attr[cms-css]を展開
+//
+  devCss: function($){
+    var me=this;
+    var data, fname, frame, dname, txt, base;
+
+    base=me.INFOJ['base'];
+    $('[cms-css]').each(function(){
+      $(this).html(me.parm(me.CSS));
+    });
+    return $;
+  },
+//
 // debug Info
 //
   debugInfo: function($){
@@ -560,12 +579,15 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
     frame=me.INFOJ['history_frame']||'history'; dname=me.INFOJ['history_source']||'history';
     if(me.CON.timesift){date=me.CON.today;}else{date=me.today('Y/M/D');}
 
-    try{
-      dname=me.parm(base+'/json/'+dname+'.json'); dt=me.getJson(dname); data=[]; jx-=0;
-      for(ix in dt){if(dt[ix].date){if(dt[ix].date<=date){data[ix]=dt[ix]; jx++;}}}
-    }catch(e){
-      txt='<p>NOT FOUND:'+dname+'</p>';
+    if(me.INFOJ.history=='auto'){dt=me.HISTORY;}
+    else{
+      try{
+        dname=me.parm(base+'/json/'+dname+'.json'); dt=me.getJson(dname);
+      }catch(e){
+        txt='<p>NOT FOUND:'+dname+'</p>';
+      }
     }
+    data=[]; jx-=0; for(ix in dt){if(dt[ix].date){if(dt[ix].date<=date){data[ix]=dt[ix]; jx++;}}}
     if(!txt){txt=me.develop(base+'/template/'+frame+'.frm', data);}
     if(!txt){txt='<p>'+me.error+'</p>';}
     return txt;
@@ -668,15 +690,15 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
 //
 // menuBuild メニューのインコア
 //
-  menuBuild: function(op){
-    var me=this;
-    var dt, fn, el, out, b, d, f, i, j, k, l, m, n, r, s, p, u, v, w, x;
+  menuBuild: function(op, force){
+    var me=this; op=op||{}; force=force||false;
+    var dt, fn, el, out, b, d, f, i, j, k, l, m, n, r, s, p, u, v, w, x, t;
     var base=op.base+'/'; var local=op.local+'/';
 
-    if(me.CON['menuBuild']){
+    if(force==false){if(me.CON['menuBuild']){
       if(me.CON['menuBuild']==me.today()){return;} if(me.CON.timesift){return;}
       me.infoLog('日付が変わりました。　New Date='+me.today());
-    }
+    }}
     me.CON['menuBuild']=me.today();
 
     r=me.getFs(base+'index.cfg'); d=JSON.parse(r);
@@ -686,14 +708,15 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
     }
     folders.unshift("");    // トップを加える
     
-    out=[]; var cnt=0;
+    out=[]; his=[]; var cnt=0;
     for(i in folders){
       if(folders[i]==""){k="";}else{k=folders[i]+'/';}
       dt=me.dir(base+k, "file");
       for(j in dt){
         fn=base+k+dt[j];
-        if(me.modifier(fn)=='page'){
+        if(me.modifier(fn)=='page' && dt[j].substr(0, 5)!='error'){
           d=me.pageinfo(fn);
+          
           b=d["PARM"].split("\n");
           w={}; for(x in b){v=me.unstring(b[x]); w[v[0]]=v[1];}
           if(k==''){l=0;}else{l=1;}
@@ -703,22 +726,32 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
           else{n=w.title.search(/\(/); if(n<0){m=w.title;}else{m=w.title.substr(0, n);}}
           if(w.valid){f=me.validation(w.valid);}else{f=true;}
           if(f){
+            t=me.stat(fn).mtime; t=t.substr(0, 2)+'-'+t.substr(2, 2)+'-'+t.substr(4, 2);
             out.push({
               "sort": w.sort, "level": l, "section": "", "url": u,
-              "title": w.title, "short": m, "group": g
+              "title": w.title, "short": m, "group": g, "date": t, "priority": w.priority||0.5
             });
             cnt++;
           }else{
             me.infoLog('suppressed page:' + w.title);            
           }
+
+          b=d["HISTORY"].split("\n");
+          for(x in b){
+            v=me.unstring(b[x]);
+            f=me.repby(me.filepart(dt[j]), '.page', '.html');
+            if(v[0]){
+              his.push({"date": v[0], "title": v[1], "url": u});
+            }
+          }
         }
       }
     }
     me.MENU=me.sort(out);
+    me.HISTORY=me.sort(his, 'date', 'des');
     var fd=Fs.openSync(local+'menu.json', "w");
     Fs.writeSync(fd, JSON.stringify(me.MENU), 0, 'utf8', function(){});
     Fs.closeSync(fd);
-
     me.infoLog('メニュー更新しました。cnt=' + cnt);
 
   },
@@ -726,16 +759,17 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
 // サイトマップxml作成
 //
   sitemap: function(res){
-    var me=this; var out, ix; out='';
+    var me=this; var out, ix, prty; out='';
 
     out+='<?xml version="1.0" encoding="UTF-8"?>';
     out+='<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
     for(ix in me.MENU){
+      prty=me.MENU[ix].priority||0.5;
       out+='<url>';
       out+='<loc>http://www.kmrweb.net'+me.MENU[ix].url+'</loc>';
-      out+='<lastmod>20'+me.today('Y-M-D')+'</lastmod>';
+      out+='<lastmod>20'+me.MENU[ix].date+'</lastmod>';
       out+='<changefreq>always</changefreq>';
-      out+='<priority>0.5</priority>';
+      out+='<priority>'+prty+'</priority>';
       out+='</url>';
     }
     out+='</urlset>';
@@ -747,12 +781,12 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {},
 //
 // sort メニューデータソート機能
 //
-  sort: function(dt, asc){
-    var i, j, house, f, t; asc=asc||true;
+  sort: function(dt, key, asc){
+    var i, j, house, f, t; key=key||'sort'; asc=asc||'asc';
     for(i=0; i<dt.length-1; i++){
       for(j=i+1; j<dt.length; j++){
-        f=dt[i].sort||""; t=dt[j].sort||"";
-        if(asc){
+        f=dt[i][key]||""; t=dt[j][key]||"";
+        if(asc=='asc'){
           if(t<f){house=dt[j]; dt[j]=dt[i]; dt[i]=house;}
         }else{
           if(t>f){house=dt[j]; dt[j]=dt[i]; dt[i]=house;}
