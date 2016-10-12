@@ -706,7 +706,12 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       f=true; if(d[j].CmsVersion){a=d[j].CmsVersion.split('/'); f=me.validation(a[1]);}
       if(f){folders=d[j].folders;}
     }
-    folders.unshift("");    // トップを加える
+    if(!folders){
+      me.sevierLog('ページデータがありません。', "folders is null");
+      return;
+    }else{
+      folders.unshift("");    // トップを加える
+    }
     
     out=[]; his=[]; var cnt=0;
     for(i in folders){
