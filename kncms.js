@@ -1,5 +1,5 @@
 var Kc=require('knuty');
-var CLR=require('./kncolor');
+var CLR=require('./kncolor.js');
 var Cookie=require('cookie');
 var Fs=require('fs');
 var Http=require('http');
@@ -7,18 +7,25 @@ var Url=require('url');
 var Cheerio=require('cheerio');
 Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 //
+  setting: function(op){
+    var me=this;   
+    op=op||{}; Kc.info(); for(var k in op){Kc.CFG[k]=op[k];}
+    op.starter=op.starter||'index.html';
+    op.template=op.template||'Template1.frm';
+    var l=me.CFG.current.search(/nodejs/);
+    op.current=op.current||me.CFG.current.substr(0, l);
+    op.base=op.base||op.current+'/html';
+    op.data=op.data||op.current+'/data';
+    op.local=op.local||op.current+'/local';
+
+    return op;
+  },
+//
   server: function(proc, op){
     var me=this;
     Kc.Fiber(function(){
-      op=op||{}; Kc.info(); for(var k in op){Kc.CFG[k]=op[k];}
-      op.port=op.port||'80'; op.starter=op.starter||'index.html';
-      op.template=op.template||'Template1.frm';
+      op=me.setting(op); op.port=op.port||me.CFG.port||'80';
       var l=me.CFG.current.search(/nodejs/);
-      op.current=op.current||me.CFG.current.substr(0, l);
-      op.base=op.base||op.current+'html';
-      op.data=op.data||op.current+'data';
-      op.local=op.local||op.current+'local';
-
       me.checkDir(['data', 'local'], me.CFG.current.substr(0, l));
 
       if(me.argv(0)){
@@ -27,7 +34,6 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       }else{
         me.CON.today=me.today('Y/M/D'); me.CON.timesift=false;
       }
-
       me.menuBuild(op);
 
       Kc.Server=Http.createServer(function(req, res){Kc.Fiber(function(){
@@ -48,7 +54,8 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
          case 'src': error=Kc.putFile(res, op.base+'/src/'); break;
          case 'cms': error=Kc.putFile(res, op.base+'/cms/'); break;
          case 'frame': error=Kc.putFile(res, op.base+'/frame/'); break;
-         case 'repository': error=Kc.putFile(res, op.base+'/repository/'); break;
+         case 'config': error=Kc.sendConfig(res); break;
+         case 'repository': error=Kc.putFile(res, op.current+'/repository/'); break;
          case 'source': error=Kc.putEscape(res, op.base+'/source/'); break;
          case 'favicon.ico': error=Kc.putFile(res, op.base+'/image/'); break;
          case 'sitemap.xml': error=Kc.sitemap(res); break;
@@ -111,7 +118,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       req.on('end', function(){me.SS.POST=JSON.parse(body); Kc.post(wid);});
       Kc.wait();
     }
-    if(me.SS.URI.search){me.SS.GET=Kc.parse(me.SS.URI.search.substr(1));}
+//    if(me.SS.URI.search){me.SS.GET=Url.parse(me.SS.URI.search.substr(1));}
 //
     if(me.SS.PATH[1]=='cms'){me.SS.Apli=me.SS.PATH[2];}
   },
@@ -194,11 +201,15 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 //
   putExpand: function(res, base){
     var me=this; var i=me.SS.PATH.length-1, path=me.SS.PATH[i];
-    var bcolor=me.INFOJ['basecolor']||'Ruby';
+    var bcolor=me.INFOJ['Basecolor']||'Ruby';
     var dt=CLR.setColor(bcolor);
     var d=CLR.setFont(''), i; for(i in d){dt[i]=d[i];}
     var txt=CLR.setCancel();
-    txt+=Fs.readFileSync(base+path, {encoding: 'utf-8'});
+    if(Kc.isExist(base+path)){
+      txt+=Fs.readFileSync(base+path, {encoding: 'utf-8'});
+    }else{
+      txt="File Not Found:"+base+path; Kc.infoLog(txt);
+    }
     res.writeHead(200, {
       "Content-Type": me.ctype(me.modifier(base+path)), "charset": "utf-8"
     });
@@ -217,10 +228,34 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       });
       res.end(me.escape(txt, true), 'utf8');
     }catch(e){
-      me.erroLog("putEscape Read File", e);
+      me.errorLog("putEscape Read File", e);
       res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});
       res.end('');
     }
+  },
+//
+// sendConfig INFOJを送信
+//
+  sendConfig: function(res){
+    var me=this; var a, i, data, con={};
+    for(i in me.SS.INFOJ){
+      if(i.search(/./)>0){
+        a=i.split('.'); if(!con[a[0]]){con[a[0]]={};} con[a[0]][a[1]]=me.INFOJ[i];
+      }else{
+        con[i]=me.INFOJ[i];
+      }
+    }
+    try{
+      data=JSON.stringify(me.INFOJ);
+    }catch(e){
+      res.writeHead(404, {"Content-Type":  "text/plane", "charset": "utf-8"});
+      res.end('404 NOT FOUND');
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": 'text/plane', "charset": "utf-8"
+    });
+    res.end(data);
   },
 //
 // デバッグ用　timesift日付のセット
@@ -228,7 +263,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
   debugSetdate: function(res, op){
     var me=this; var date;
     if(me.CFG.mode!='debug'){
-      res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});　res.end('404 NOT FOUND');
+      res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"}); res.end('404 NOT FOUND');
     }else{
       date=me.repby(me.SS.PATH[2], '.', '/'); 
       me.CON.today=date; me.CON.timesift=true; me.CON.menuBuild='';
@@ -240,11 +275,17 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 // putHTML 本来のCMS処理
 //
   putHtml: function(url, base, res){
-    var me=this;
+    var me=this; var code=200;
     var b=url.split('/'); if(b[b.length-1]==""){url=url+"index.html";}
-    var a=url.split('.');
+    var a=url.split('.'); var n;
+    if(!a[1]){
+      a[0]+='/index'; a[1]='html'; url+='/index.html'; n=me.SS.PATH.length; me.SS.PATH[n]='';
+    }else if(a[1]!='html'){
+      res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});
+      res.end('ERROR 404');
+    }
+
     var dt={}; dt['PARM']=""; var txt;
- 
     try{
       if(!me.getInfoj(base)){
         res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});
@@ -255,27 +296,37 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
         if(!me.isExist(base+url)){
           a[a.length-1]="page"; var i, c=""; u=""; for(i in a){u=u+c+a[i]; c=".";}
           dt=me.pageinfo(base+u, base);
-          b=dt["PARM"].split("\n");
-          var v;
-          for(i in b){v=me.unstring(b[i]); me.INFOJ[v[0]]=v[1];}
+          if(!dt["BODY"]){dt=me.pageinfo(base+"/error404.page", base); code=404;}
+//          b=dt["PARM"].split("\n");
+//         var v;
+//          for(i in b){v=me.unstring(b[i]); me.INFOJ[v[0]]=v[1];}
+          me.layer(dt['PARM'].split("\n"));
 
           var data=me.INFOJ['menu_data']||'menu';
 
           me.INFOJ['url']=url;
-          me.INFOJ['short']=me.INFOJ['short']||me.INFOJ['title'];
+          me.INFOJ['Short']=me.INFOJ['Short']||me.INFOJ['Title'];
           me.CSS=dt['CSS']||'';
           me.toolbox();
 
-          txt=Fs.readFileSync(base+"/template/"+me.INFOJ["template"]+".htm", {encoding: 'utf8'});
-          txt=me.expand(txt, base, dt);
+          if(Kc.isExist(base+"/template/"+me.INFOJ["Template"]+".htm")){
+            txt=Fs.readFileSync(base+"/template/"+me.INFOJ["Template"]+".htm", {encoding: 'utf8'});
+          }else{
+            txt="Template Not Found:"+base+"/template/"+me.INFOJ["Template"]+".htm";
+            Kc.infoLog(txt);
+          }
         }else{
-          txt=Fs.readFileSync(base+url, {encoding: 'utf-8'});
+          if(Kc.isExist(base+url)){
+            txt=Fs.readFileSync(base+url, {encoding: 'utf-8'});
+          }else{
+            txt="File Not Found:"+base+url; Kc.infoLog(txt);
+          }
         }
       }
-      res.writeHead(200, {
+      res.writeHead(code, {
         "Content-Type": "text/html", "charset": "utf8", "Set-Cookie": me.putCookies()
       });
-      res.end(txt, "utf8");
+      res.end(me.expand(txt, base, dt), "utf8");
     }catch(e){
       me.sevierLog("putHtml", e);
       res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"});
@@ -289,7 +340,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     var me=this; var a, f, k, v, i, j, d, r, l; var fn="index.cfg", path=me.SS.PATH;
 
     me.INFOJ=me.INFOJ||{}; me.INFOJ.base=base;
-    l=path.length; if(l>2){me.INFOJ.group=path[2];}else{me.INFOJ.group="home";}
+    l=path.length; if(l>2){me.INFOJ.Group=path[2];}else{me.INFOJ.Group="home";}
     if(path[l-1].search(/#/)>-1){me.INFOJ.level=l-1;}else{me.INFOJ.level=l-2;}
     for(i in path){
       if(i>0){
@@ -331,11 +382,33 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
           }
         }
       }
+
       return f;
     }else{
       me.errorLog('pageinfo nothing');
       return {};
     }
+  },
+//
+// layer INFOJの階層化対応
+//
+  layer: function(lines){
+    var me=this;
+
+    var i, v, g;
+    g=''; for(i in lines){
+      v=me.unstring(lines[i]);
+      if(v[1]=="*"){
+        g=v[0];
+      }else{
+        if(g){
+          me.INFOJ[g+'.'+v[0]]=v[1];
+        }else{
+          if(v[0]){me.INFOJ[v[0]]=v[1];}
+        }
+      }
+    }
+
   },
 //
 // expand HTMLへと拡張展開する
@@ -347,9 +420,37 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       xmlMode: true
     });
 
-    $=me.devPage($, dt); $=me.devInclude($); $=me.devParts($); $=me.devFrame($);
+    $=me.devCss($); $=me.devPage($, dt); $=me.devInclude($); $=me.devParts($); $=me.devFrame($);
     if(me.CFG.mode=='debug'){$=me.debugInfo($);}
+    if(me.INFOJ['Use']=='responsive'){$=me.appendScript($, 'responsive');}
     return $.html();
+
+  },
+//
+//
+//
+  appendScript: function($){
+    var me=this;
+    if(!me.INFOJ.Analytics){return $;}
+
+    $('body').append('<script type="text/javascript" '+
+      'src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.1/jquery.min.js"> </script>');
+    $('body').append('<script type="text/javascript" src="/repository/responsive.js"> </script>');
+    $('body').append('<script language="javascript">RES.begin({loadConfig: "yes"});</script>');
+
+    if(me.INFOJ['Analytics'].account){
+      var x="<script> \n";
+      x+="(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){";
+      x+="(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),";
+      x+="m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)";
+      x+="})(window,document,'script','//www.google-analytics.com/analytics.js','ga');";
+      x+="ga('create', '"+me.INFOJ['Analytics'].account+"', 'auto');";
+      x+="ga('send', 'pageview');";
+      x+="</script>";
+      $('head').append(x);
+    }
+
+    return $;
 
   },
 //
@@ -433,6 +534,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
        case "foot": txt=me.foot(); break;
        case "history": txt=me.history(); break;
        case "color": txt=me.color(); break;
+       case "pankuzu": txt=me.pankuzu(); break;
        default : txt="[Not Found]"+f;
       }
       $(this).html(txt);
@@ -469,7 +571,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 
     base=me.INFOJ['base'];
     $('[cms-css]').each(function(){
-      $(this).html(me.parm(me.CSS));
+      if(me.CSS){$(this).html(me.parm(me.CSS));}
     });
     return $;
   },
@@ -490,8 +592,30 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 // pankuzu パンくずパーツ
 // 
   pankuzu: function(){
-    var out="**PANKUZU**";
+    var me=this; var out, u, mem, base, mark, dt=[], i, j, k;
+    mem=me.INFOJ['pankuzu_form']||'pankuzu'; mark=me.INFOJ['pankuzu_mark']||' &gt; ';
+    base=me.INFOJ['base'];
+    dt[0]={}; dt[0].url='/index.html'; dt[0].Title=me.MENU[0].short;
+    if(me.SS.PATH.length==2){if(me.SS.PATH[1]!='' && me.SS.PATH[1]!='index.html'){
+      dt[1]={}; dt[1].url='/'+me.SS.PATH[1];
+      for(j in me.MENU){if(me.MENU[j].url==dt[1].url){dt[1].title=me.MENU[j].title;}}
+    }}
+    if(me.SS.PATH.length==3){
+      if(me.SS.PATH[2]!='' && me.SS.PATH[1]!='index.html'){
+        dt[1]={}; dt[1].url='/'+me.SS.PATH[1]+'/index.html';
+        for(j in me.MENU){if(me.MENU[j].url==dt[1].url){dt[1].title=mark+me.MENU[j].short;}}
+        dt[2]={}; dt[2].url='/'+me.SS.PATH[1]+'/'+me.SS.PATH[2];
+        for(j in me.MENU){if(me.MENU[j].url==dt[2].url){dt[2].title=mark+me.MENU[j].title;}}
+      }else{
+        dt[1]={}; dt[1].url='/'+me.SS.PATH[1]+'/index.html';
+        for(j in me.MENU){if(me.MENU[j].url==dt[1].url){dt[1].title=mark+me.MENU[j].short;}}
+        dt[2]={}; dt[2].url='/'+me.SS.PATH[1]+'/index.html';
+        for(j in me.MENU){if(me.MENU[j].url==dt[2].url){dt[1].title=mark+me.MENU[j].title;}}
+      }
+    }
+    var out=me.develop(base+'/template/'+mem+'.frm', dt);
     return out;
+
   },
 //
 // navbar ナビゲーションバーパーツ
@@ -515,7 +639,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     var me=this; var out=""; var base=me.INFOJ['base'];
     var mem=me.INFOJ['sidemenu_form']||'menu2';
     var data=me.INFOJ['sidemenu_data']||'menu';
-    var grp=me.INFOJ['group'];
+    var grp=me.INFOJ['Group'];
     
 //    var dt=me.getJson(base+'/template/'+data+'.json');
     var dt=me.selection("side");
@@ -530,7 +654,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     var me=this; var out=""; var base=me.INFOJ['base'];
     var mem=me.INFOJ['foot_form']||'footer1';
     var data=me.INFOJ['foot_data']||'menu';
-    var grp=me.INFOJ['group'];
+    var grp=me.INFOJ['Group'];
     
  //   var dt=me.getJson(base+'/template/'+data+'.json');
     var dt=me.selection("top2");
@@ -563,7 +687,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     var data=me.INFOJ['navbar_data']||'menu';
     
 //    var dt=me.getJson(base+'/template/'+data+'.json');
-    var dt=me.selection("sibling", me.INFOJ['group']);
+    var dt=me.selection("sibling", me.INFOJ['Group']);
     var out=me.develop(base+'/template/'+mem+'.frm', dt);
     
     return out;
@@ -576,10 +700,10 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     var data, fname, frame, dname, txt, base, ix, dt, jx, date;
 
     base=me.INFOJ['base'];
-    frame=me.INFOJ['history_frame']||'history'; dname=me.INFOJ['history_source']||'history';
+    frame=me.INFOJ['History_frame']||'history'; dname=me.INFOJ['History_source']||'history';
     if(me.CON.timesift){date=me.CON.today;}else{date=me.today('Y/M/D');}
 
-    if(me.INFOJ.history=='auto'){dt=me.HISTORY;}
+    if(me.INFOJ.History=='auto'){dt=me.HISTORY;}
     else{
       try{
         dname=me.parm(base+'/json/'+dname+'.json'); dt=me.getJson(dname);
@@ -700,17 +824,12 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       me.infoLog('日付が変わりました。　New Date='+me.today());
     }}
     me.CON['menuBuild']=me.today();
-
     r=me.getFs(base+'index.cfg'); d=JSON.parse(r);
     var folders; for(j in d){
       f=true; if(d[j].CmsVersion){a=d[j].CmsVersion.split('/'); f=me.validation(a[1]);}
-      if(f){folders=d[j].folders;}
+      if(f){folders=d[j].Folders;}
     }
-    if(!folders){
-      folders=[];
-    }else{
-      folders.unshift("");    // トップを加える
-    }
+    if(folders){folders.unshift("");}else{folders=[];}    // トップを加える
     
     out=[]; his=[]; var cnt=0;
     for(i in folders){
@@ -719,25 +838,25 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       for(j in dt){
         fn=base+k+dt[j];
         if(me.modifier(fn)=='page' && dt[j].substr(0, 5)!='error'){
-          d=me.pageinfo(fn);
-          
+          d=me.pageinfo(fn); if(!d["PARM"]){d['PARM']='Valid 99/12/31:00/01/01';}
           b=d["PARM"].split("\n");
           w={}; for(x in b){v=me.unstring(b[x]); w[v[0]]=v[1];}
+          w.Title=w.Title||'no title';
           if(k==''){l=0;}else{l=1;}
           p=me.lastOf(dt[j], '.'); if(p>0){u='/'+k+dt[j].substr(0, p)+'.html';}else{u='/'+k+dt[j];}
           if(k==''){g='top';}else{g=folders[i];}
-          if(w.short){m=w.short;}
-          else{n=w.title.search(/\(/); if(n<0){m=w.title;}else{m=w.title.substr(0, n);}}
-          if(w.valid){f=me.validation(w.valid);}else{f=true;}
+          if(w.Short){m=w.Short;}
+          else{n=w.Title.search(/\(/); if(n<0){m=w.Title;}else{m=w.Title.substr(0, n);}}
+          if(w.Valid){f=me.validation(w.Valid);}else{f=true;}
           if(f){
             t=me.stat(fn).mtime; t=t.substr(0, 2)+'-'+t.substr(2, 2)+'-'+t.substr(4, 2);
             out.push({
-              "sort": w.sort, "level": l, "section": "", "url": u,
-              "title": w.title, "short": m, "group": g, "date": t, "priority": w.priority||0.5
+              "sort": w.Sort, "level": l, "section": "", "url": u,
+              "title": w.Title, "short": m, "group": g, "date": t, "priority": w.Priority||0.5
             });
             cnt++;
           }else{
-            me.infoLog('suppressed page:' + w.title);            
+            me.infoLog('suppressed page:' + w.Title);            
           }
 
           b=d["HISTORY"].split("\n");
@@ -819,6 +938,22 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     }
     return true;
 
+  },
+//
+//
+//
+  cleanup: function(op){
+    var me=this; op=op||{}; if(op.keepDays==undefined){op.keepDays=3;}
+    var l, c, i, f, s, d, ca=0, cd=0;
+    l=me.dir(op.data);
+    c=me.addDays(op.keepDays*-1);
+    for(i in l){
+      ca++;
+      f=op.data+'/'+l[i]; s=me.stat(f); d=s.atime.substr(0, 6);
+      if(d<c){Fs.unlink(f); cd++;}
+    }
+    me.infoLog('全件数:'+ca);
+    me.infoLog('削除件数:'+cd);
   },
 //
   closeCms: function(){}
