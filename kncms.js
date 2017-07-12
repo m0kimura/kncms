@@ -872,9 +872,9 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     }
     me.MENU=me.sort(out);
     me.HISTORY=me.sort(his, 'date', 'des');
-    var fd=Fs.openSync(local+'menu.json', "w");
-    Fs.writeSync(fd, JSON.stringify(me.MENU), 0, 'utf8', function(){});
-    Fs.closeSync(fd);
+//    var fd=Fs.openSync(local+'menu.json', "w");
+//    Fs.writeSync(fd, JSON.stringify(me.MENU), 0, 'utf8', function(){});
+//    Fs.closeSync(fd);
     me.infoLog('メニュー更新しました。cnt=' + cnt);
 
   },
