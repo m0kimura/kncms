@@ -1,4 +1,4 @@
-var Kc=require('kxuty');
+var Kc=require('knuty');
 var CLR=require('./kncolor.js');
 var Cookie=require('cookie');
 var Fs=require('fs');

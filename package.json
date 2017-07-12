@@ -1,5 +1,5 @@
 {
-  "name": "kxcms",
+  "name": "kncms",
   "description": "Kmrweb.net Contents Management System Library",
   "keywords": [
     "CMS",
@@ -18,12 +18,12 @@
     "url": "git://github.org/m0kimura/kxcms.git"
   },
   "dependencies": {
-    "cheerio": "^0.22.0",
+    "cheerio": "^1.0.0-rc.2",
     "cookie": "^0.3.1",
-    "kxuty": "^0.2.1"
+    "knuty": "^1.1.0"
   },
   "engines": {
     "node": ">=4.2.6"
   },
-  "main": "./kxcms.js"
+  "main": "./kncms.js"
 }
