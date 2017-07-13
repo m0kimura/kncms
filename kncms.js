@@ -5,15 +5,16 @@ var Fs=require('fs');
 var Http=require('http');
 var Url=require('url');
 var Cheerio=require('cheerio');
-Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
+Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '', BLOCK: {},
 //
   setting: function(op){
     var me=this;   
     op=op||{}; Kc.info(); for(var k in op){Kc.CFG[k]=op[k];}
     op.starter=op.starter||'index.html';
     op.template=op.template||'Template1.frm';
-    var l=me.CFG.current.search(/nodejs/);
-    op.current=op.current||me.CFG.current.substr(0, l);
+    var l=Kc.CFG.current.search(/nodejs/);
+    if(l<0){op.current=op.current||Kc.CFG.current;}
+    else{op.current=op.current||Kc.CFG.current.substr(0, l);}
     op.base=op.base||op.current+'/html';
     op.data=op.data||op.current+'/data';
     op.local=op.local||op.current+'/local';
@@ -43,7 +44,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
         Kc.analyzeRequest(req, res);
         switch(me.SS.PATH[1]){
          case 'rest':
-          error=proc(me.SS);
+          error=proc(me.SS, Kc);
           if(!error){Kc.sessionOut(req, res);}
           break;
          case 'image': error=Kc.putFile(res, op.base+'/image/'); break;
@@ -62,10 +63,10 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
          case 'reload': me.menuBuild(op, true); error=false; 
           res.writeHead(200, {"Content-Type": "text/plane", "charset": "utf-8"}); res.end("OK");
           break;
-         case 'setdate': me.debugSetdate(res, op); break;
          default:
-          error=proc(me.SS);
-          me.putHtml(req.url, op.base, res); me.SS.INFOJ=me.INFOJ;
+          error=proc(me.SS, Kc);
+          if(me.SS.GET.setdate){me.debugSetdate(res, op);}
+          me.putHtml(me.SS.URI.pathname, op.base, res); me.SS.INFOJ=me.INFOJ;
           try{
             Fs.writeFileSync(op.data+'/ss_'+me.SS.cid+'.json', JSON.stringify(me.SS), 'utf8');
           }catch(e){
@@ -110,7 +111,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     me.SS.URI=Url.parse(req.url);
     me.SS.PATH=me.SS.URI.pathname.split('/');
     me.SS.method=req.method; me.SS.headers=req.headers;
-    me.SS.POST={};
+    me.SS.POST={}; me.SS.GET={};
     if(req.method=='POST'){
       var body = '';
       var wid=Kc.ready();
@@ -118,7 +119,10 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       req.on('end', function(){me.SS.POST=JSON.parse(body); Kc.post(wid);});
       Kc.wait();
     }
-//    if(me.SS.URI.search){me.SS.GET=Url.parse(me.SS.URI.search.substr(1));}
+    if(me.SS.URI.query){
+      var a=me.SS.URI.query.split("&");
+      var b, i; for(i in a){b=a[i].split("="); me.SS.GET[b[0]]=b[1];}
+    }
 //
     if(me.SS.PATH[1]=='cms'){me.SS.Apli=me.SS.PATH[2];}
   },
@@ -262,13 +266,10 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
 //
   debugSetdate: function(res, op){
     var me=this; var date;
-    if(me.CFG.mode!='debug'){
-      res.writeHead(404, {"Content-Type":  "text/html", "charset": "utf-8"}); res.end('404 NOT FOUND');
-    }else{
-      date=me.repby(me.SS.PATH[2], '.', '/'); 
+    if(me.CFG.mode=='debug'){
+      date=me.repby(me.SS.GET.setdate, '.', '/');
       me.CON.today=date; me.CON.timesift=true; me.CON.menuBuild='';
       me.menuBuild(op);
-      res.writeHead(200, {"Content-Type": "text/plane", "charset": "utf-8"}); res.end("OK");
     }
   },
 //
@@ -420,7 +421,8 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       xmlMode: true
     });
 
-    $=me.devCss($); $=me.devPage($, dt); $=me.devInclude($); $=me.devParts($); $=me.devFrame($);
+    $=me.devCss($); $=me.devPage($, dt); $=me.devInclude($);
+    $=me.devParts($); $=me.devFrame($); $=me.devBlock($);
     if(me.CFG.mode=='debug'){$=me.debugInfo($);}
     if(me.INFOJ['Use']=='responsive'){$=me.appendScript($, 'responsive');}
     return $.html();
@@ -551,13 +553,28 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     base=me.INFOJ['base'];
     $('[cms-frame]').each(function(){
       frame=$(this).attr('cms-frame'); dname=$(this).attr('source');
-      try{
-        dname=me.parm(base+'/json/'+dname+'.json'); data=me.getJson(dname);
-      }catch(e){
-        txt='<p>NOT FOUND:'+dname+'</p>';
+      if(dname){
+        try{
+          dname=me.parm(base+'/json/'+dname+'.json'); data=me.getJson(dname);
+        }catch(e){
+          txt='<p>NOT FOUND:'+dname+'</p>';
+        }
       }
       if(!txt){txt=me.develop(base+'/template/'+frame+'.frm', data);}
       if(!txt){txt='<p>'+me.error+'</p>';}
+      $(this).html(txt);
+    });
+    return $;
+  },
+//
+// devBlock Attr[cms-block]を展開
+//
+  devBlock: function($){
+    var me=this, m, txt;
+
+    $('[cms-block]').each(function(){
+      m=$(this).attr('cms-block');
+      if(me.BLOCK[m]){txt=me.parm(me.BLOCK[m]);}else{txt='<p>NOT FOUND:'+m+'</p>';}
       $(this).html(txt);
     });
     return $;
@@ -741,7 +758,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
       url=dt[i].url||""; a=url.split('/'); l=a.length;
       switch(tp){
         case "side": if(a[l-1].search(/#/)>0){l=l+1;} break;
-        case "top2": if(a[l-1].search(/index.html/)<0){l=l+1;} break;
+        case "top2": if(a[l-1].search(/index.html/)<0){l=4;}else{l=3;} break;
       }
       switch(l){
        case 3:
@@ -827,7 +844,7 @@ Kc.extend({MENU: {}, SS: {}, TODAY: {}, CON: {}, HISTORY: [], CSS: '',
     r=me.getFs(base+'index.cfg'); d=JSON.parse(r);
     var folders; for(j in d){
       f=true; if(d[j].CmsVersion){a=d[j].CmsVersion.split('/'); f=me.validation(a[1]);}
-      if(f){folders=d[j].Folders;}
+      if(f){if(d[j].Folders){folders=d[j].Folders;}}
     }
     if(folders){folders.unshift("");}else{folders=[];}    // トップを加える
     
